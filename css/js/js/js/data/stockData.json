@@ -1,0 +1,13 @@
+[
+  {
+    "Date": "2022-01-01",
+    "Ticker": "TCS",
+    "Close": 1345.49,
+    "Volume": 4739158,
+    "MarketCap": 56673620000,
+    "PE_Ratio": 34.22,
+    "DividendYield": 4.74,
+    "Sector": "Technology",
+    "Beta": 0.65
+  }
+]

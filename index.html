@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Stock Market Dashboard</title>
+
+<script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+
+<header class="navbar">
+  <h2>Stock Market Dashboard</h2>
+  <div class="nav">
+    <button class="tab active" data-tab="overview">Market Overview</button>
+    <button class="tab" data-tab="performance">Stock Performance</button>
+    <button class="tab" data-tab="risk">Risk & Volatility</button>
+    <button class="tab" data-tab="fundamentals">Fundamentals</button>
+  </div>
+</header>
+
+<section class="filters">
+  <select id="ticker"></select>
+  <select id="sector"></select>
+  <select id="risk">
+    <option value="">All Risk</option>
+    <option value="low">Low Risk</option>
+    <option value="medium">Medium Risk</option>
+    <option value="high">High Risk</option>
+  </select>
+  <input type="date" id="startDate">
+  <input type="date" id="endDate">
+</section>
+
+<section id="overview" class="dashboard active">
+  <div class="kpis">
+    <div class="kpi"><i class="fa-solid fa-building-columns"></i><p>Total Market Cap</p><h3 id="marketCap"></h3></div>
+    <div class="kpi"><i class="fa-solid fa-chart-line"></i><p>Avg % Change</p><h3 id="change"></h3></div>
+    <div class="kpi"><i class="fa-solid fa-arrows-rotate"></i><p>Total Volume</p><h3 id="volume"></h3></div>
+    <div class="kpi"><i class="fa-solid fa-calculator"></i><p>Avg P/E</p><h3 id="pe"></h3></div>
+    <div class="kpi"><i class="fa-solid fa-coins"></i><p>Dividend Yield</p><h3 id="dividend"></h3></div>
+  </div>
+
+  <div class="charts">
+    <div id="priceTrend"></div>
+    <div id="sectorCap"></div>
+    <div id="volumeTrend"></div>
+    <div id="sectorSplit"></div>
+  </div>
+</section>
+
+<script src="app.js"></script>
+</body>
+</html>
