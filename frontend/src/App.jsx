@@ -1,8 +1,8 @@
 import { useState } from "react";
-import NavBar from "./components/NavBar";
-import Dashboard1 from "./components/Dashboard1";
-import Dashboard2 from "./components/Dashboard2";
-import Dashboard3 from "./components/Dashboard3";
+import NavBar from "./Components/NavBar";
+import Dashboard1 from "./Components/Dashboard1";
+import Dashboard2 from "./Components/Dashboard2";
+import Dashboard3 from "./Components/Dashboard3";
 
 export default function App() {
   const [current, setCurrent] = useState(0);
