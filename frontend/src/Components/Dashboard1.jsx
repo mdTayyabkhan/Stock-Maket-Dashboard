@@ -13,7 +13,11 @@ export default function Dashboard1() {
   const [filters, setFilters] = useState({ sector: "", risk: "", period: "Y" });
 
   const fetchData = async () => {
-    const res = await axios.get("http://127.0.0.1:5000/api/dashboard1", { params: filters });
+    const res = await axios.get(
+  `${import.meta.env.VITE_API_BASE_URL}/api/dashboard1`,
+  { params: filters }
+);
+
     setData(res.data);
   };
 

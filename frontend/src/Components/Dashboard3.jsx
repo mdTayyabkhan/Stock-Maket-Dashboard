@@ -13,7 +13,9 @@ export default function Dashboard3() {
   const [filters, setFilters] = useState({ sector: "", risk: "", period: "Q" });
 
   const fetchData = async () => {
-    const res = await axios.get("http://127.0.0.1:5000/api/dashboard3", { params: filters });
+    const res = await axios.get(
+      `${import.meta.env.VITE_API_BASE_URL}/api/dashboard3`,
+      { params: filters });
     setData(res.data);
   };
 
