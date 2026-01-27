@@ -12,20 +12,30 @@ export default function Dashboard1() {
   const [filters, setFilters] = useState({ sector: "", risk: "", period: "Y" });
 
   // -----------------------------
-  // Optimized fetch with abort
+  // Optimized fetch with abort (FIXED)
   // -----------------------------
-  const fetchData = async (signal) => {
-    const res = await axios.get(
-      `${import.meta.env.VITE_API_BASE_URL}/api/dashboard1`,
-      { params: filters, signal }
-    );
-    setData(res.data);
-  };
-
   useEffect(() => {
     const controller = new AbortController();
-    fetchData(controller.signal);
-    return () => controller.abort();
+
+    const fetchData = async () => {
+      try {
+        const res = await axios.get(
+          `${import.meta.env.VITE_API_BASE_URL}/api/dashboard1`,
+          {
+            params: filters,
+            signal: controller.signal,
+          }
+        );
+        setData(res.data);
+      } catch (err) {
+        if (axios.isCancel(err)) return; // ✅ ignore aborts
+        console.error(err);
+      }
+    };
+
+    fetchData();
+
+    return () => controller.abort(); // ✅ cancel on unmount / re-render
   }, [filters]);
 
   const kpiIcons = [TrendingUp, Activity, BarChart2, Layers, Zap];
@@ -46,7 +56,7 @@ export default function Dashboard1() {
   };
 
   // -----------------------------
-  // Memoized pie aggregation
+  // Memoized pie aggregation (UNCHANGED)
   // -----------------------------
   const pieData = useMemo(() => {
     if (!data?.bar) return [];
@@ -112,7 +122,6 @@ export default function Dashboard1() {
       {/* Charts (ALL 4 PRESERVED) */}
       <div className="grid grid-cols-2 gap-6">
 
-        {/* Chart 1 */}
         <ChartCard title="Average Returns Over Time">
           <ResponsiveContainer width="100%" height={250}>
             <AreaChart data={data.area}>
@@ -126,7 +135,6 @@ export default function Dashboard1() {
           </ResponsiveContainer>
         </ChartCard>
 
-        {/* Chart 2 */}
         <ChartCard title="Return Distribution by Sector">
           <ResponsiveContainer width="100%" height={250}>
             <PieChart>
@@ -149,7 +157,6 @@ export default function Dashboard1() {
           </ResponsiveContainer>
         </ChartCard>
 
-        {/* Chart 3 (SVG Volatility – unchanged) */}
         <ChartCard title="Market Volatility Progress">
           <div className="flex justify-center items-center bg-gray-800 rounded-xl h-[250px]">
             <svg width="220" height="220" viewBox="0 0 100 100">
@@ -179,7 +186,6 @@ export default function Dashboard1() {
           </div>
         </ChartCard>
 
-        {/* Chart 4 (SVG Stream – unchanged) */}
         <ChartCard title="Return vs Beta Stream">
           <div className="relative bg-gray-800 rounded-xl h-[250px] overflow-hidden">
             <svg width="100%" height="100%" viewBox="0 0 400 200" preserveAspectRatio="none">
