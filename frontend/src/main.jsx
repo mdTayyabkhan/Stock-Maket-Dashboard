@@ -1,14 +1,10 @@
-// src/main.jsx
 import React from "react";
 import ReactDOM from "react-dom/client";
-import App from "./App.jsx";
-import "./index.css";
-import { FilterProvider } from "./Components/FilterContext.jsx";
+import { HashRouter } from "react-router-dom";
+import App from "./App";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
-  <React.StrictMode>
-    <FilterProvider>
-      <App />
-    </FilterProvider>
-  </React.StrictMode>
+  <HashRouter>
+    <App />
+  </HashRouter>
 );
