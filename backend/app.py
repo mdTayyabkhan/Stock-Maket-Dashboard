@@ -5,37 +5,23 @@ import numpy as np
 import os
 import logging
 
-# ---------------------------------------------------------------------
-# Flask Configuration
-# ---------------------------------------------------------------------
 app = Flask(__name__)
 CORS(app)
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 
-# ---------------------------------------------------------------------
-# Paths
-# ---------------------------------------------------------------------
 BASE_PATH = os.path.dirname(os.path.abspath(__file__))
 DATA_PATH = os.path.join(BASE_PATH, "data", "StockMarket.csv")
 
-# ---------------------------------------------------------------------
-# Global Cache & Data
-# ---------------------------------------------------------------------
 DATAFRAME = None
 CACHE = {}
 
-# ---------------------------------------------------------------------
-# ✅ FIX: UI period → pandas frequency (NEW OFFSETS)
-# ---------------------------------------------------------------------
+# ✅ Modern pandas frequencies
 FREQ_MAP = {
-    "Y": "YE",        # Year End
-    "Q": "QE-DEC",    # Quarter End (financial year)
-    "M": "ME"         # Month End
+    "Y": "YE",
+    "Q": "QE-DEC",
+    "M": "ME"
 }
 
-# ---------------------------------------------------------------------
-# Load CSV ONCE
-# ---------------------------------------------------------------------
 def load_data():
     global DATAFRAME
     if DATAFRAME is None:
@@ -54,9 +40,6 @@ def load_data():
 
     return DATAFRAME
 
-# ---------------------------------------------------------------------
-# Helper Functions
-# ---------------------------------------------------------------------
 def aggregate_data(df, freq):
     grouped = (
         df.groupby(pd.Grouper(key='Date', freq=freq))
@@ -74,7 +57,6 @@ def aggregate_data(df, freq):
         .dropna()
     )
 
-    # ORIGINAL volatility logic (correct & safe)
     grouped['Volatility'] = (
         df['Close']
         .pct_change()
@@ -101,59 +83,97 @@ def safe_json(df):
     df = df.replace([np.inf, -np.inf], np.nan).fillna(0)
     return df.to_dict(orient='records')
 
-# ---------------------------------------------------------------------
-# ROUTE: Dashboard 1
-# ---------------------------------------------------------------------
+# ---------------- DASHBOARD 1 ----------------
 @app.route("/api/dashboard1")
 def dashboard1():
-    try:
-        sector = request.args.get("sector")
-        risk = request.args.get("risk")
-        period = request.args.get("period", "Y")
+    sector = request.args.get("sector")
+    risk = request.args.get("risk")
+    period = request.args.get("period", "Y")
 
-        app.logger.info(f"Dashboard1 hit with filters: {sector}, {risk}, {period}")
+    cache_key = ("d1", sector, risk, period)
+    if cache_key in CACHE:
+        return jsonify(CACHE[cache_key])
 
-        cache_key = (sector, risk, period)
-        if cache_key in CACHE:
-            return jsonify(CACHE[cache_key])
+    df = load_data()
+    if sector:
+        df = df[df["Sector"] == sector]
+    if risk:
+        df = df[df["Risk"] == risk]
 
-        df = load_data()
+    freq = FREQ_MAP.get(period, "YE")
+    agg = aggregate_data(df, freq)
+    kpi = make_kpis(df)
 
-        if sector:
-            df = df[df["Sector"] == sector]
-        if risk:
-            df = df[df["Risk"] == risk]
+    data = {
+        "kpi": kpi,
+        "area": safe_json(agg[['Date', 'Return']].rename(columns={'Return': 'value'})),
+        "bar": safe_json(agg[['Date', 'Volume']].rename(columns={'Volume': 'value'})),
+        "line": safe_json(agg[['Date', 'Volatility']].rename(columns={'Volatility': 'value'})),
+        "scatter": safe_json(agg[['Return', 'Volume']])
+    }
 
-        # ✅ ALWAYS USE MODERN PANDAS OFFSET
-        freq = FREQ_MAP.get(period, "YE")
-        agg = aggregate_data(df, freq)
+    CACHE[cache_key] = data
+    return jsonify(data)
 
-        kpi = make_kpis(df)
+# ---------------- DASHBOARD 2 (RESTORED) ----------------
+@app.route("/api/dashboard2")
+def dashboard2():
+    sector = request.args.get("sector")
+    risk = request.args.get("risk")
+    period = request.args.get("period", "Q")
 
-        data = {
-            "kpi": kpi,
-            "area": safe_json(agg[['Date', 'Return']].rename(columns={'Return': 'value'})),
-            "bar": safe_json(agg[['Date', 'Volume']].rename(columns={'Volume': 'value'})),
-            "line": safe_json(agg[['Date', 'Volatility']].rename(columns={'Volatility': 'value'})),
-            "scatter": safe_json(agg[['Return', 'Volume']])
-        }
+    cache_key = ("d2", sector, risk, period)
+    if cache_key in CACHE:
+        return jsonify(CACHE[cache_key])
 
-        CACHE[cache_key] = data
-        return jsonify(data)
+    df = load_data()
+    if sector:
+        df = df[df["Sector"] == sector]
+    if risk:
+        df = df[df["Risk"] == risk]
 
-    except Exception as e:
-        logging.exception(e)
-        return jsonify({"error": str(e)}), 500
+    freq = FREQ_MAP.get(period, "QE-DEC")
+    agg = aggregate_data(df, freq)
+    kpi = make_kpis(df)
 
-# ---------------------------------------------------------------------
-# Root Route
-# ---------------------------------------------------------------------
+    heatmap = (
+        df.groupby("Sector")["Return"]
+        .mean()
+        .reset_index()
+        .rename(columns={"Return": "perf"})
+    )
+
+    radar = pd.DataFrame({
+        "metric": ["Volatility", "Sharpe", "Beta", "Return", "Liquidity"],
+        "value": [
+            round(df["Return"].std() / 100, 2),
+            round((df["Return"].mean() / (df["Return"].std() + 1e-6)), 2),
+            round(df["Beta"].mean(), 2),
+            round(df["Return"].mean() / 100, 2),
+            round(df["Volume"].mean() / df["Volume"].max(), 2),
+        ],
+    })
+
+    data = {
+        "kpi": kpi,
+        "heatmap": safe_json(heatmap),
+        "radar": safe_json(radar),
+        "bubble": safe_json(df.groupby("Sector")[["MarketCap", "Beta"]].mean().reset_index()),
+        "donut": safe_json(
+            df["Sector"]
+            .value_counts(normalize=True)
+            .mul(100)
+            .reset_index()
+            .rename(columns={"index": "sector", "Sector": "share"})
+        )
+    }
+
+    CACHE[cache_key] = data
+    return jsonify(data)
+
 @app.route("/")
 def home():
     return jsonify({"message": "Flask Backend Running Successfully 🚀"})
 
-# ---------------------------------------------------------------------
-# Run App
-# ---------------------------------------------------------------------
 if __name__ == "__main__":
     app.run(debug=False, port=5000)
