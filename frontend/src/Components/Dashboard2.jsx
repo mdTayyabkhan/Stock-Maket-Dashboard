@@ -12,19 +12,29 @@ export default function Dashboard2() {
   const [filters, setFilters] = useState({ sector: "", risk: "", period: "Q" });
 
   // -----------------------------
-  // Optimized fetch with abort
+  // Optimized fetch with abort (FIXED)
   // -----------------------------
-  const fetchData = async (signal) => {
-    const res = await axios.get(
-      `${import.meta.env.VITE_API_BASE_URL}/api/dashboard2`,
-      { params: filters, signal }
-    );
-    setData(res.data);
-  };
-
   useEffect(() => {
     const controller = new AbortController();
-    fetchData(controller.signal);
+
+    const fetchData = async () => {
+      try {
+        const res = await axios.get(
+          `${import.meta.env.VITE_API_BASE_URL}/api/dashboard2`,
+          {
+            params: filters,
+            signal: controller.signal,
+          }
+        );
+        setData(res.data);
+      } catch (err) {
+        if (axios.isCancel(err)) return; // ✅ ignore aborts
+        console.error(err);
+      }
+    };
+
+    fetchData();
+
     return () => controller.abort();
   }, [filters]);
 
@@ -41,7 +51,7 @@ export default function Dashboard2() {
   };
 
   // -----------------------------
-  // Memoized KPI computation
+  // Memoized KPI computation (UNCHANGED)
   // -----------------------------
   const computedKPIs = useMemo(() => {
     if (!data) return [];
@@ -62,7 +72,7 @@ export default function Dashboard2() {
   }, [data]);
 
   // -----------------------------
-  // Memoized scatter data
+  // Memoized scatter data (UNCHANGED)
   // -----------------------------
   const scatterData = useMemo(() => {
     return (data?.bubble || []).map(d => ({
@@ -71,9 +81,6 @@ export default function Dashboard2() {
     }));
   }, [data]);
 
-  // -----------------------------
-  // Prevent expensive empty renders
-  // -----------------------------
   if (!data) {
     return <div className="text-center text-gray-400">Loading dashboard...</div>;
   }
@@ -127,7 +134,6 @@ export default function Dashboard2() {
       {/* Charts Grid */}
       <div className="grid grid-cols-2 gap-6">
 
-        {/* 1️⃣ Radar Chart */}
         <ChartCard title="Risk-Return Profile">
           <ResponsiveContainer width="100%" height={300}>
             <RadarChart data={data.radar || []}>
@@ -140,7 +146,6 @@ export default function Dashboard2() {
           </ResponsiveContainer>
         </ChartCard>
 
-        {/* 2️⃣ Chord Network Chart */}
         <ChartCard title="Sector Relationship Network">
           <div className="flex justify-center items-center h-[300px] bg-gray-800 rounded-xl">
             <svg width="300" height="300" viewBox="0 0 200 200">
@@ -172,15 +177,14 @@ export default function Dashboard2() {
           </div>
         </ChartCard>
 
-        {/* 3️⃣ Scatter Cluster Chart */}
         <ChartCard title="Risk vs Beta Cluster Map">
           <ResponsiveContainer width="100%" height={300}>
             <ScatterChart>
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="Beta" name="Beta">
+              <XAxis dataKey="Beta">
                 <Label value="Beta" offset={-5} position="insideBottom" />
               </XAxis>
-              <YAxis dataKey="MarketCap" name="Market Cap">
+              <YAxis dataKey="MarketCap">
                 <Label value="Market Cap" angle={-90} position="insideLeft" />
               </YAxis>
               <ZAxis dataKey="Risk" range={[80, 400]} />
@@ -191,7 +195,6 @@ export default function Dashboard2() {
           </ResponsiveContainer>
         </ChartCard>
 
-        {/* 4️⃣ StreamGraph */}
         <ChartCard title="Sector Performance Flow">
           <div className="relative bg-gray-800 rounded-xl h-[300px] overflow-hidden">
             <svg width="100%" height="100%" viewBox="0 0 400 200" preserveAspectRatio="none">
