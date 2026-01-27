@@ -24,11 +24,13 @@ DATA_PATH = os.path.join(BASE_PATH, "data", "StockMarket.csv")
 DATAFRAME = None
 CACHE = {}
 
-# ✅ FIX 1: Period → Pandas Frequency mapping
+# ---------------------------------------------------------------------
+# ✅ FIX: UI period → pandas frequency (NEW OFFSETS)
+# ---------------------------------------------------------------------
 FREQ_MAP = {
-    "Y": "Y",
-    "Q": "Q-DEC",
-    "M": "M"
+    "Y": "YE",        # Year End
+    "Q": "QE-DEC",    # Quarter End (financial year)
+    "M": "ME"         # Month End
 }
 
 # ---------------------------------------------------------------------
@@ -41,16 +43,13 @@ def load_data():
         df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
         df = df.dropna(subset=['Date'])
 
-        # Derive Risk level from Beta
         df['Risk'] = pd.cut(
             df['Beta'],
             bins=[-np.inf, 0.8, 1.2, np.inf],
             labels=['Low', 'Medium', 'High']
         )
 
-        # Add Return (%)
         df['Return'] = ((df['Close'] - df['Open']) / df['Open']) * 100
-
         DATAFRAME = df
 
     return DATAFRAME
@@ -75,7 +74,7 @@ def aggregate_data(df, freq):
         .dropna()
     )
 
-    # ✅ FIX 2: Restore ORIGINAL volatility logic (uses df, not grouped)
+    # ORIGINAL volatility logic (correct & safe)
     grouped['Volatility'] = (
         df['Close']
         .pct_change()
@@ -85,7 +84,7 @@ def aggregate_data(df, freq):
     )
 
     grouped['Sharpe_Ratio'] = grouped['Return'] / (grouped['Volatility'] + 1e-6)
-    grouped['Date'] = pd.to_datetime(grouped['Date']).dt.strftime('%Y-%m-%d')
+    grouped['Date'] = grouped['Date'].dt.strftime('%Y-%m-%d')
 
     return grouped
 
@@ -114,7 +113,6 @@ def dashboard1():
 
         app.logger.info(f"Dashboard1 hit with filters: {sector}, {risk}, {period}")
 
-        # Cache key
         cache_key = (sector, risk, period)
         if cache_key in CACHE:
             return jsonify(CACHE[cache_key])
@@ -126,8 +124,8 @@ def dashboard1():
         if risk:
             df = df[df["Risk"] == risk]
 
-        # ✅ FIX 1 applied here
-        freq = FREQ_MAP.get(period, "Y")
+        # ✅ ALWAYS USE MODERN PANDAS OFFSET
+        freq = FREQ_MAP.get(period, "YE")
         agg = aggregate_data(df, freq)
 
         kpi = make_kpis(df)
