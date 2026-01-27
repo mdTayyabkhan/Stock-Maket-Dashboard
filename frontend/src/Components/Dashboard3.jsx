@@ -12,19 +12,29 @@ export default function Dashboard3() {
   const [filters, setFilters] = useState({ sector: "", risk: "", period: "Q" });
 
   // -----------------------------
-  // Optimized fetch with abort
+  // Optimized fetch with abort (FIXED)
   // -----------------------------
-  const fetchData = async (signal) => {
-    const res = await axios.get(
-      `${import.meta.env.VITE_API_BASE_URL}/api/dashboard3`,
-      { params: filters, signal }
-    );
-    setData(res.data);
-  };
-
   useEffect(() => {
     const controller = new AbortController();
-    fetchData(controller.signal);
+
+    const fetchData = async () => {
+      try {
+        const res = await axios.get(
+          `${import.meta.env.VITE_API_BASE_URL}/api/dashboard3`,
+          {
+            params: filters,
+            signal: controller.signal,
+          }
+        );
+        setData(res.data);
+      } catch (err) {
+        if (axios.isCancel(err)) return; // ✅ ignore aborts
+        console.error(err);
+      }
+    };
+
+    fetchData();
+
     return () => controller.abort();
   }, [filters]);
 
@@ -40,7 +50,7 @@ export default function Dashboard3() {
   };
 
   // -----------------------------
-  // Memoized KPI computation
+  // Memoized KPI computation (UNCHANGED)
   // -----------------------------
   const computedKPIs = useMemo(() => {
     if (!data) return [];
@@ -68,26 +78,15 @@ export default function Dashboard3() {
   }, [data]);
 
   // -----------------------------
-  // Memoized chart data
+  // Memoized chart data (UNCHANGED)
   // -----------------------------
-  const treemapData = useMemo(
-    () => data?.treemap || [],
-    [data]
-  );
-
-  const waterfallData = useMemo(
-    () => data?.waterfall || [],
-    [data]
-  );
-
+  const treemapData = useMemo(() => data?.treemap || [], [data]);
+  const waterfallData = useMemo(() => data?.waterfall || [], [data]);
   const gaugeValues = useMemo(
     () => data?.gauge || { Volatility: 0, Sharpe: 0 },
     [data]
   );
 
-  // -----------------------------
-  // Prevent expensive empty render
-  // -----------------------------
   if (!data) {
     return <div className="text-center text-gray-400">Loading dashboard...</div>;
   }
@@ -143,7 +142,6 @@ export default function Dashboard3() {
       {/* Charts Grid */}
       <div className="grid grid-cols-2 gap-6">
 
-        {/* 1️⃣ Treemap */}
         <ChartCard title="Industry MarketCap Breakdown">
           <ResponsiveContainer width="100%" height={300}>
             <Treemap
@@ -152,10 +150,7 @@ export default function Dashboard3() {
               aspectRatio={4 / 3}
             >
               {treemapData.map((_, i) => (
-                <Cell
-                  key={i}
-                  fill={["#14b8a6", "#06b6d4", "#8b5cf6", "#f59e0b"][i % 4]}
-                />
+                <Cell key={i} fill={["#14b8a6", "#06b6d4", "#8b5cf6", "#f59e0b"][i % 4]} />
               ))}
               <Tooltip />
               <Legend />
@@ -163,7 +158,6 @@ export default function Dashboard3() {
           </ResponsiveContainer>
         </ChartCard>
 
-        {/* 2️⃣ Waterfall Chart */}
         <ChartCard title="EPS vs Dividend Yield Over Time">
           <ResponsiveContainer width="100%" height={300}>
             <ComposedChart data={waterfallData}>
@@ -186,7 +180,6 @@ export default function Dashboard3() {
           </ResponsiveContainer>
         </ChartCard>
 
-        {/* 3️⃣ Gauge Chart */}
         <ChartCard title="Volatility & Sharpe Ratio Gauge">
           <div className="flex justify-around items-center h-[300px] bg-gray-800 rounded-xl">
             {["Volatility", "Sharpe"].map((key, idx) => {
@@ -211,7 +204,6 @@ export default function Dashboard3() {
           </div>
         </ChartCard>
 
-        {/* 4️⃣ BoxPlot */}
         <ChartCard title="EPS Distribution Analysis">
           <div className="flex justify-center items-center h-[300px] bg-gray-800 rounded-xl">
             <svg width="320" height="220" viewBox="0 0 300 200">
