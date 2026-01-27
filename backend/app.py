@@ -177,3 +177,51 @@ def home():
 
 if __name__ == "__main__":
     app.run(debug=False, port=5000)
+
+
+# ---------------- DASHBOARD 3 (RESTORED) ----------------
+@app.route("/api/dashboard3")
+def dashboard3():
+    sector = request.args.get("sector")
+    risk = request.args.get("risk")
+    period = request.args.get("period", "Q")
+
+    cache_key = ("d3", sector, risk, period)
+    if cache_key in CACHE:
+        return jsonify(CACHE[cache_key])
+
+    df = load_data()
+
+    if sector:
+        df = df[df["Sector"] == sector]
+    if risk:
+        df = df[df["Risk"] == risk]
+
+    freq = FREQ_MAP.get(period, "QE-DEC")
+    agg = aggregate_data(df, freq)
+    kpi = make_kpis(df)
+
+    treemap = safe_json(
+        df.groupby("Industry")[["MarketCap", "Beta"]]
+        .mean()
+        .reset_index()
+    )
+
+    eps_vs_div = safe_json(
+        agg[['Date', 'EPS', 'DividendYield']].fillna(0)
+    )
+
+    gauge = {
+        "Volatility": round(df["Return"].std(), 2),
+        "Sharpe": round(kpi["Sharpe Ratio"], 2)
+    }
+
+    data = {
+        "kpi": kpi,
+        "treemap": treemap,
+        "waterfall": eps_vs_div,
+        "gauge": gauge
+    }
+
+    CACHE[cache_key] = data
+    return jsonify(data)
