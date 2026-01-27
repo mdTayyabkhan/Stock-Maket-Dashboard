@@ -1,5 +1,4 @@
-// frontend/src/Dashboard2.jsx
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import axios from "axios";
 import {
   ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend,
@@ -12,16 +11,22 @@ export default function Dashboard2() {
   const [data, setData] = useState(null);
   const [filters, setFilters] = useState({ sector: "", risk: "", period: "Q" });
 
- const fetchData = async () => {
-  const res = await axios.get(
-    `${import.meta.env.VITE_API_BASE_URL}/api/dashboard2`,
-    { params: filters }
-  );
-  setData(res.data);
-};
+  // -----------------------------
+  // Optimized fetch with abort
+  // -----------------------------
+  const fetchData = async (signal) => {
+    const res = await axios.get(
+      `${import.meta.env.VITE_API_BASE_URL}/api/dashboard2`,
+      { params: filters, signal }
+    );
+    setData(res.data);
+  };
 
-
-  useEffect(() => { fetchData(); }, [filters]);
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchData(controller.signal);
+    return () => controller.abort();
+  }, [filters]);
 
   const kpiIcons = [Network, Droplet, GitMerge, Zap, Activity];
 
@@ -35,23 +40,43 @@ export default function Dashboard2() {
     return "text-white";
   };
 
-  const computeKPI = () => {
+  // -----------------------------
+  // Memoized KPI computation
+  // -----------------------------
+  const computedKPIs = useMemo(() => {
     if (!data) return [];
+
     const sectors = data.heatmap || [];
-    const highestReturnSector = sectors.length ? sectors.reduce((a, b) => (a.perf > b.perf ? a : b)) : { Sector: "-", perf: 0 };
-    const volatilitySpread = ((Math.random() * 15) + 5).toFixed(2);
-    const liquidity = ((data.kpi["Avg Volume (M)"] / data.kpi["Beta"]) * 10).toFixed(2);
-    const riskDispersion = (Math.random() * 10 + 5).toFixed(2);
-    const correlation = (Math.random() * 100).toFixed(2);
+    const highestReturnSector =
+      sectors.length
+        ? sectors.reduce((a, b) => (a.perf > b.perf ? a : b))
+        : { Sector: "-", perf: 0 };
 
     return [
       { label: "Top Performing Sector", value: highestReturnSector.Sector },
-      { label: "Volatility Spread (%)", value: parseFloat(volatilitySpread) },
-      { label: "Liquidity Index (%)", value: parseFloat(liquidity) },
-      { label: "Risk Dispersion Index", value: parseFloat(riskDispersion) },
-      { label: "Correlation Strength", value: parseFloat(correlation) },
+      { label: "Volatility Spread (%)", value: parseFloat(((Math.random() * 15) + 5).toFixed(2)) },
+      { label: "Liquidity Index (%)", value: parseFloat(((data.kpi["Avg Volume (M)"] / data.kpi["Beta"]) * 10).toFixed(2)) },
+      { label: "Risk Dispersion Index", value: parseFloat((Math.random() * 10 + 5).toFixed(2)) },
+      { label: "Correlation Strength", value: parseFloat((Math.random() * 100).toFixed(2)) },
     ];
-  };
+  }, [data]);
+
+  // -----------------------------
+  // Memoized scatter data
+  // -----------------------------
+  const scatterData = useMemo(() => {
+    return (data?.bubble || []).map(d => ({
+      ...d,
+      Risk: Math.random() * 100,
+    }));
+  }, [data]);
+
+  // -----------------------------
+  // Prevent expensive empty renders
+  // -----------------------------
+  if (!data) {
+    return <div className="text-center text-gray-400">Loading dashboard...</div>;
+  }
 
   return (
     <div className="p-6 text-white">
@@ -65,12 +90,14 @@ export default function Dashboard2() {
           <option value="Financials">Financials</option>
           <option value="Conglomerate">Conglomerate</option>
         </select>
+
         <select className="bg-gray-800 p-2 rounded" onChange={e => setFilters({ ...filters, risk: e.target.value })}>
           <option value="">All Risk Levels</option>
           <option value="Low">Low</option>
           <option value="Medium">Medium</option>
           <option value="High">High</option>
         </select>
+
         <select className="bg-gray-800 p-2 rounded" onChange={e => setFilters({ ...filters, period: e.target.value })}>
           <option value="Y">Yearly</option>
           <option value="Q">Quarterly</option>
@@ -80,22 +107,18 @@ export default function Dashboard2() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-5 gap-4 mb-6">
-        {computeKPI().map((item, i) => {
+        {computedKPIs.map((item, i) => {
           const Icon = kpiIcons[i];
-          const valueColor = getValueColor(item.value);
           return (
             <div
               key={i}
               className="relative overflow-hidden rounded-xl p-4 text-center backdrop-blur-md
                          bg-gradient-to-br from-gray-700/60 via-gray-800/50 to-gray-900/70
-                         border border-teal-400/10 shadow-[0_0_25px_rgba(20,184,166,0.25)]
-                         before:absolute before:inset-0 before:bg-gradient-to-br
-                         before:from-white/10 before:to-transparent before:opacity-20 before:blur-2xl
-                         transition-all duration-300"
+                         border border-teal-400/10 shadow-[0_0_25px_rgba(20,184,166,0.25)]"
             >
-              <Icon className="mx-auto text-teal-300 mb-2 relative z-10" size={28} />
-              <h3 className="text-gray-200 font-medium relative z-10">{item.label}</h3>
-              <p className={`text-2xl font-semibold mt-1 relative z-10 ${valueColor}`}>{item.value}</p>
+              <Icon className="mx-auto text-teal-300 mb-2" size={28} />
+              <h3 className="text-gray-200 font-medium">{item.label}</h3>
+              <p className={`text-2xl font-semibold mt-1 ${getValueColor(item.value)}`}>{item.value}</p>
             </div>
           );
         })}
@@ -107,7 +130,7 @@ export default function Dashboard2() {
         {/* 1️⃣ Radar Chart */}
         <ChartCard title="Risk-Return Profile">
           <ResponsiveContainer width="100%" height={300}>
-            <RadarChart data={data?.radar || []}>
+            <RadarChart data={data.radar || []}>
               <PolarGrid />
               <PolarAngleAxis dataKey="metric" />
               <PolarRadiusAxis />
@@ -125,11 +148,7 @@ export default function Dashboard2() {
                 const angle = (i / 8) * 2 * Math.PI;
                 const x = 100 + 80 * Math.cos(angle);
                 const y = 100 + 80 * Math.sin(angle);
-                return (
-                  <circle key={i} cx={x} cy={y} r="5" fill="#8b5cf6">
-                    <title>{`Sector ${i + 1}`}</title>
-                  </circle>
-                );
+                return <circle key={i} cx={x} cy={y} r="5" fill="#8b5cf6" />;
               })}
               {[...Array(8)].map((_, i) => {
                 const a1 = (i / 8) * 2 * Math.PI;
@@ -164,17 +183,10 @@ export default function Dashboard2() {
               <YAxis dataKey="MarketCap" name="Market Cap">
                 <Label value="Market Cap" angle={-90} position="insideLeft" />
               </YAxis>
-              <ZAxis dataKey="Risk" range={[80, 400]} name="Risk" />
-              <Tooltip cursor={{ strokeDasharray: "3 3" }} />
+              <ZAxis dataKey="Risk" range={[80, 400]} />
+              <Tooltip />
               <Legend />
-              <Scatter
-                name="Assets"
-                data={(data?.bubble || []).map(d => ({
-                  ...d,
-                  Risk: Math.random() * 100,
-                }))}
-                fill="#10b981"
-              />
+              <Scatter name="Assets" data={scatterData} fill="#10b981" />
             </ScatterChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -186,7 +198,10 @@ export default function Dashboard2() {
               {[...Array(5)].map((_, i) => {
                 const color = ["#14b8a6", "#8b5cf6", "#06b6d4", "#10b981", "#f59e0b"][i];
                 const offset = i * 20;
-                const wave = Array.from({ length: 10 }, (_, j) => `${j * 40},${100 + Math.sin(j + i) * 20 - offset}`).join(" L ");
+                const wave = Array.from(
+                  { length: 10 },
+                  (_, j) => `${j * 40},${100 + Math.sin(j + i) * 20 - offset}`
+                ).join(" L ");
                 return (
                   <path
                     key={i}
@@ -197,9 +212,12 @@ export default function Dashboard2() {
                 );
               })}
             </svg>
-            <div className="absolute bottom-2 left-2 text-xs text-gray-400">Dynamic Flow of Sector Returns</div>
+            <div className="absolute bottom-2 left-2 text-xs text-gray-400">
+              Dynamic Flow of Sector Returns
+            </div>
           </div>
         </ChartCard>
+
       </div>
     </div>
   );
