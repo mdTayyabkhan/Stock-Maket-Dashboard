@@ -1,5 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
-import axios from "axios";
+import { useMemo } from "react";
 import {
   ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend,
   ScatterChart, CartesianGrid, XAxis, YAxis, ZAxis, Tooltip, Scatter, Label
@@ -7,36 +6,13 @@ import {
 import ChartCard from "./ChartCard";
 import { Network, Droplet, GitMerge, Zap, Activity } from "lucide-react";
 
-export default function Dashboard2() {
-  const [data, setData] = useState(null);
-  const [filters, setFilters] = useState({ sector: "", risk: "", period: "Q" });
-
+export default function Dashboard2({ data }) {
   // -----------------------------
-  // Optimized fetch with abort (FIXED)
+  // EARLY EXIT (no refetch)
   // -----------------------------
-  useEffect(() => {
-    const controller = new AbortController();
-
-    const fetchData = async () => {
-      try {
-        const res = await axios.get(
-          `${import.meta.env.VITE_API_BASE_URL}/api/dashboard2`,
-          {
-            params: filters,
-            signal: controller.signal,
-          }
-        );
-        setData(res.data);
-      } catch (err) {
-        if (axios.isCancel(err)) return; // ✅ ignore aborts
-        console.error(err);
-      }
-    };
-
-    fetchData();
-
-    return () => controller.abort();
-  }, [filters]);
+  if (!data) {
+    return <div className="text-center text-gray-400">Loading dashboard...</div>;
+  }
 
   const kpiIcons = [Network, Droplet, GitMerge, Zap, Activity];
 
@@ -81,36 +57,9 @@ export default function Dashboard2() {
     }));
   }, [data]);
 
-  if (!data) {
-    return <div className="text-center text-gray-400">Loading dashboard...</div>;
-  }
-
   return (
     <div className="p-6 text-white">
       <h1 className="text-3xl font-bold mb-4 text-teal-400">📊 Sector & Risk Analytics</h1>
-
-      {/* Filters */}
-      <div className="flex gap-4 mb-6">
-        <select className="bg-gray-800 p-2 rounded" onChange={e => setFilters({ ...filters, sector: e.target.value })}>
-          <option value="">All Sectors</option>
-          <option value="Technology">Technology</option>
-          <option value="Financials">Financials</option>
-          <option value="Conglomerate">Conglomerate</option>
-        </select>
-
-        <select className="bg-gray-800 p-2 rounded" onChange={e => setFilters({ ...filters, risk: e.target.value })}>
-          <option value="">All Risk Levels</option>
-          <option value="Low">Low</option>
-          <option value="Medium">Medium</option>
-          <option value="High">High</option>
-        </select>
-
-        <select className="bg-gray-800 p-2 rounded" onChange={e => setFilters({ ...filters, period: e.target.value })}>
-          <option value="Y">Yearly</option>
-          <option value="Q">Quarterly</option>
-          <option value="M">Monthly</option>
-        </select>
-      </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-5 gap-4 mb-6">
