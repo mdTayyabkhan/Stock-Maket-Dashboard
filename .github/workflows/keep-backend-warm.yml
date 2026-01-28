@@ -1,15 +1,13 @@
-name: Keep Render Backend Warm
+name: Keep Backend Warm
 
 on:
   schedule:
-    - cron: "*/5 * * * *"
-  workflow_dispatch:
+    - cron: "*/10 * * * *"   # every 10 minutes
 
 jobs:
-  ping-backend:
+  ping:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Ping Render Backend
+      - name: Ping backend
         run: |
-          curl -s https://stock-maket-dashboard.onrender.com/ > /dev/null
+          curl https://YOUR-BACKEND-URL.onrender.com/api/dashboard-all
