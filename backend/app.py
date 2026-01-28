@@ -5,9 +5,18 @@ import numpy as np
 import os
 import logging
 
+# 🔹 ADD: Flask-Caching import
+from flask_caching import Cache
+
 app = Flask(__name__)
 CORS(app)
 logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
+
+# 🔹 ADD: Flask-Caching setup (15 minutes)
+cache = Cache(app, config={
+    "CACHE_TYPE": "SimpleCache",
+    "CACHE_DEFAULT_TIMEOUT": 900
+})
 
 BASE_PATH = os.path.dirname(os.path.abspath(__file__))
 DATA_PATH = os.path.join(BASE_PATH, "data", "StockMarket.csv")
@@ -85,6 +94,7 @@ def safe_json(df):
 
 # ---------------- DASHBOARD 1 ----------------
 @app.route("/api/dashboard1")
+@cache.cached(timeout=900)
 def dashboard1():
     sector = request.args.get("sector")
     risk = request.args.get("risk")
@@ -115,8 +125,9 @@ def dashboard1():
     CACHE[cache_key] = data
     return jsonify(data)
 
-# ---------------- DASHBOARD 2 (RESTORED) ----------------
+# ---------------- DASHBOARD 2 ----------------
 @app.route("/api/dashboard2")
+@cache.cached(timeout=900)
 def dashboard2():
     sector = request.args.get("sector")
     risk = request.args.get("risk")
@@ -171,16 +182,9 @@ def dashboard2():
     CACHE[cache_key] = data
     return jsonify(data)
 
-@app.route("/")
-def home():
-    return jsonify({"message": "Flask Backend Running Successfully 🚀"})
-
-if __name__ == "__main__":
-    app.run(debug=False, port=5000)
-
-
-# ---------------- DASHBOARD 3 (RESTORED) ----------------
+# ---------------- DASHBOARD 3 ----------------
 @app.route("/api/dashboard3")
+@cache.cached(timeout=900)
 def dashboard3():
     sector = request.args.get("sector")
     risk = request.args.get("risk")
@@ -191,7 +195,6 @@ def dashboard3():
         return jsonify(CACHE[cache_key])
 
     df = load_data()
-
     if sector:
         df = df[df["Sector"] == sector]
     if risk:
@@ -225,3 +228,20 @@ def dashboard3():
 
     CACHE[cache_key] = data
     return jsonify(data)
+
+# ---------------- COMBINED DASHBOARD API (NEW) ----------------
+@app.route("/api/dashboard-all")
+@cache.cached(timeout=900)
+def dashboard_all():
+    return jsonify({
+        "dashboard1": dashboard1().get_json(),
+        "dashboard2": dashboard2().get_json(),
+        "dashboard3": dashboard3().get_json()
+    })
+
+@app.route("/")
+def home():
+    return jsonify({"message": "Flask Backend Running Successfully 🚀"})
+
+if __name__ == "__main__":
+    app.run(debug=False, port=5000)
