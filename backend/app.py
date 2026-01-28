@@ -229,19 +229,88 @@ def dashboard3():
     CACHE[cache_key] = data
     return jsonify(data)
 
-# ---------------- COMBINED DASHBOARD API (NEW) ----------------
-@app.route("/api/dashboard-all")
-@cache.cached(timeout=900)
-def dashboard_all():
-    return jsonify({
-        "dashboard1": dashboard1().get_json(),
-        "dashboard2": dashboard2().get_json(),
-        "dashboard3": dashboard3().get_json()
-    })
 
-@app.route("/")
-def home():
-    return jsonify({"message": "Flask Backend Running Successfully 🚀"})
+
+# ---------------- COMBINED DASHBOARD API (OPTIMIZED) ----------------
+@app.route("/api/dashboard-all")
+def dashboard_all():
+    sector = request.args.get("sector")
+    risk = request.args.get("risk")
+    period = request.args.get("period", "Y")
+
+    cache_key = ("ALL", sector, risk, period)
+    if cache_key in CACHE:
+        return jsonify(CACHE[cache_key])
+
+    # ✅ LOAD DATA ONCE
+    df = load_data()
+
+    if sector:
+        df = df[df["Sector"] == sector]
+    if risk:
+        df = df[df["Risk"] == risk]
+
+    freq = FREQ_MAP.get(period, "YE")
+    agg = aggregate_data(df, freq)
+    kpi = make_kpis(df)
+
+    response = {
+        "dashboard1": {
+            "kpi": kpi,
+            "area": safe_json(agg[['Date', 'Return']].rename(columns={'Return': 'value'})),
+            "bar": safe_json(agg[['Date', 'Volume']].rename(columns={'Volume': 'value'})),
+            "line": safe_json(agg[['Date', 'Volatility']].rename(columns={'Volatility': 'value'})),
+            "scatter": safe_json(agg[['Return', 'Volume']]),
+        },
+
+        "dashboard2": {
+            "kpi": kpi,
+            "heatmap": safe_json(
+                df.groupby("Sector")["Return"]
+                .mean()
+                .reset_index()
+                .rename(columns={"Return": "perf"})
+            ),
+            "radar": safe_json(pd.DataFrame({
+                "metric": ["Volatility", "Sharpe", "Beta", "Return", "Liquidity"],
+                "value": [
+                    round(df["Return"].std() / 100, 2),
+                    round(df["Return"].mean() / (df["Return"].std() + 1e-6), 2),
+                    round(df["Beta"].mean(), 2),
+                    round(df["Return"].mean() / 100, 2),
+                    round(df["Volume"].mean() / df["Volume"].max(), 2),
+                ],
+            })),
+            "bubble": safe_json(
+                df.groupby("Sector")[["MarketCap", "Beta"]].mean().reset_index()
+            ),
+            "donut": safe_json(
+                df["Sector"]
+                .value_counts(normalize=True)
+                .mul(100)
+                .reset_index()
+                .rename(columns={"index": "sector", "Sector": "share"})
+            ),
+        },
+
+        "dashboard3": {
+            "kpi": kpi,
+            "treemap": safe_json(
+                df.groupby("Industry")[["MarketCap", "Beta"]].mean().reset_index()
+            ),
+            "waterfall": safe_json(
+                agg[['Date', 'EPS', 'DividendYield']].fillna(0)
+            ),
+            "gauge": {
+                "Volatility": round(df["Return"].std(), 2),
+                "Sharpe": round(kpi["Sharpe Ratio"], 2),
+            },
+        },
+    }
+
+    CACHE[cache_key] = response
+    return jsonify(response)
+
 
 if __name__ == "__main__":
     app.run(debug=False, port=5000)
